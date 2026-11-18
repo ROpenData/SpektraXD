@@ -238,14 +238,14 @@ private:
     // without blocking the main render worker. Vulkan supports two engines
     // in one process; deliveries carry a settings snapshot so stale renders
     // never overwrite newer state.
-    struct ThumbJob { int index; QUrl url; spk::desktop::DecodeMode mode; spk::desktop::RenderSettings settings; };
+    // Background filmstrip thumbnails: quiet, low-priority jobs on the SAME
+    // serial worker as user renders (one engine, one 50 MP session at a
+    // time — a second engine rendering full-tier concurrently would exceed
+    // the GPU memory). User operations always run first; a queued thumbnail
+    // whose photo has since been edited is dropped at delivery.
     void scheduleThumbnails();
-    void thumbLoop();
-    std::thread thumb_worker_;
-    std::deque<ThumbJob> thumb_jobs_;
-    std::mutex thumb_mutex_;
-    std::condition_variable thumb_wake_;
-    bool thumb_stopping_=false;
+    void submitThumb(Job job);   // queued behind every user operation
+    std::deque<Job> low_jobs_;
     int thumbs_pending_=0;
     ImageFactory image_factory_;
     quint64 generation_=0;

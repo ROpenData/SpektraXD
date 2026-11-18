@@ -87,7 +87,6 @@ PreviewController::PreviewController(std::filesystem::path resources,QObject* pa
     save_timer_.setSingleShot(true);save_timer_.setInterval(350);
     connect(&save_timer_,&QTimer::timeout,this,&PreviewController::flushEdits);
     worker_=std::thread([this,resources=std::move(resources)]{workerLoop(resources);});
-    thumb_worker_=std::thread([this]{thumbLoop();});
 }
 PreviewController::~PreviewController() {
     auto_apply_.stop();
@@ -100,9 +99,7 @@ PreviewController::~PreviewController() {
     {std::lock_guard lock(mutex_);stopping_=true;jobs_.clear();}
     wake_.notify_one();
     if(worker_.joinable()) worker_.join();
-    {std::lock_guard lock(thumb_mutex_);thumb_stopping_=true;thumb_jobs_.clear();}
-    thumb_wake_.notify_all();
-    if(thumb_worker_.joinable()) thumb_worker_.join();
+    {std::lock_guard lock(mutex_);low_jobs_.clear();}
 }
 void PreviewController::workerLoop(std::filesystem::path resources) {
     std::unique_ptr<desktop::PreviewHost> host;
@@ -113,8 +110,12 @@ void PreviewController::workerLoop(std::filesystem::path resources) {
     if(!host)return;
     for(;;) {
         Job job;
-        {std::unique_lock lock(mutex_);wake_.wait(lock,[&]{return stopping_||!jobs_.empty();});
-         if(stopping_)break;job=std::move(jobs_.front());jobs_.pop_front();}
+        {std::unique_lock lock(mutex_);
+         wake_.wait(lock,[&]{return stopping_||!jobs_.empty()||!low_jobs_.empty();});
+         if(stopping_)break;
+         // User operations always run first; thumbnails fill the idle time.
+         if(!jobs_.empty()) job=std::move(jobs_.front()),jobs_.pop_front();
+         else job=std::move(low_jobs_.front()),low_jobs_.pop_front();}
         deliver(job(*host));
     }
 }
@@ -238,7 +239,7 @@ void PreviewController::accept(Reply reply) {
         ||reply.operation=="balance-brightness")&&!busy_)schedulePreview();
     // Any successful operation may have cleared thumbnails (sync, batch
     // applies) or imported photos the user never visited: fill them in.
-    if(!failed_&&!thumb_stopping_)scheduleThumbnails();
+    if(!failed_)scheduleThumbnails();
 }
 desktop::RenderSettings PreviewController::settings() const {
     desktop::RenderSettings s=extra_settings_;
@@ -816,68 +817,46 @@ void PreviewController::balanceBrightness() {
 void PreviewController::cancelBalance(){if(cancel_balance_)cancel_balance_->store(true);}
 
 void PreviewController::scheduleThumbnails() {
-    if(!ready_||thumb_stopping_)return;
+    if(!ready_||stopping_)return;
     bool added=false;
-    {
-        std::lock_guard lock(thumb_mutex_);
-        for(int i=0;i<int(library_.size());++i) {
-            const auto& item=library_[i];
-            if(!item.thumbnail.isNull()||!item.error.isEmpty())continue;
-            if(i==active_index_&&busy_)continue;  // the main worker is rendering it now
-            ThumbJob job{i,item.url,item.mode,item.settings};
-            // Re-queue an existing entry for the same photo so the newest
-            // settings always win; a stale in-flight job is dropped at delivery.
-            const auto existing=std::find_if(thumb_jobs_.begin(),thumb_jobs_.end(),
-                [&](const ThumbJob& queued){return queued.index==i;});
-            if(existing!=thumb_jobs_.end())*existing=std::move(job);
-            else {thumb_jobs_.push_back(std::move(job));++thumbs_pending_;}
-            added=true;
-        }
-    }
-    if(added){emit libraryChanged();thumb_wake_.notify_one();}
-}
-void PreviewController::thumbLoop() {
-    std::unique_ptr<desktop::PreviewHost> host;
-    for(;;) {
-        ThumbJob job;
-        {
-            std::unique_lock lock(thumb_mutex_);
-            thumb_wake_.wait(lock,[&]{return thumb_stopping_||!thumb_jobs_.empty();});
-            if(thumb_stopping_)return;
-            job=std::move(thumb_jobs_.front());thumb_jobs_.pop_front();
-        }
-        if(!host) {
-            // No session cache here: the thumbnail pass visits each photo
-            // once, and cached sessions would pin GPU memory for nothing.
-            try {host=std::make_unique<desktop::PreviewHost>(resources_,0);}
-            catch(const std::exception&) {
-                // No second engine (for example no Vulkan device). Placeholders
-                // keep the explicit click-to-preview behaviour; nothing hangs.
-                QMetaObject::invokeMethod(this,[this]{
-                    {std::lock_guard lock(thumb_mutex_);thumb_jobs_.clear();}
-                    thumbs_pending_=0;emit libraryChanged();},Qt::QueuedConnection);
-                return;
-            }
-        }
-        QImage thumbnail;
-        QString error;
-        try {
-            const auto frame=host->open_raw(path(job.url),job.mode,job.settings,"full",false);
-            thumbnail=imageFromFrame(frame).scaled(180,120,Qt::KeepAspectRatio,Qt::SmoothTransformation);
-        }catch(const std::exception& e){error=text(e.what());}
-        QMetaObject::invokeMethod(this,[this,index=job.index,mode=job.mode,
-                                         settings=job.settings,thumbnail,error]{
-            if(index>=0&&index<int(library_.size())) {
-                auto& item=library_[index];
-                const bool current=item.mode==mode&&sameSettings(item.settings,settings);
-                if(current&&item.thumbnail.isNull()) {
-                    if(error.isEmpty())item.thumbnail=thumbnail;
-                    else item.error=error;
+    for(int i=0;i<int(library_.size());++i) {
+        const auto& item=library_[i];
+        if(!item.thumbnail.isNull()||!item.error.isEmpty())continue;
+        if(i==active_index_)continue;  // the main worker renders it on demand
+        const auto job=item;  // snapshot: a later edit supersedes the queued thumb
+        submitThumb([this,gen=generation_,index=i,url=job.url,mode=job.mode,
+                     settings=job.settings](auto& host){
+            QImage thumbnail;
+            QString error;
+            try {
+                const auto frame=host.open_raw(path(url),mode,settings,"full",false);
+                thumbnail=imageFromFrame(frame).scaled(180,120,Qt::KeepAspectRatio,Qt::SmoothTransformation);
+            }catch(const std::exception& e){error=text(e.what());}
+            QMetaObject::invokeMethod(this,[this,gen,index,mode,settings,thumbnail,error]{
+                if(generation_!=gen)return;
+                if(index>=0&&index<int(library_.size())) {
+                    auto& item=library_[index];
+                    const bool current=item.mode==mode&&sameSettings(item.settings,settings);
+                    if(current&&item.thumbnail.isNull()) {
+                        if(error.isEmpty())item.thumbnail=thumbnail;
+                        else item.error=error;
+                    }
+                    // A stale or superseded job only retires its pending count.
                 }
-                // A stale or superseded job only retires its pending count.
-            }
-            --thumbs_pending_;
-            emit libraryChanged();
-        },Qt::QueuedConnection);
+                --thumbs_pending_;
+                emit libraryChanged();
+            },Qt::QueuedConnection);
+            return Reply{};
+        });
+        ++thumbs_pending_;
+        added=true;
     }
+    if(added)emit libraryChanged();
+}
+
+void PreviewController::submitThumb(Job job) {
+    // Thumbnails ride the user worker's low-priority queue: one engine, one
+    // 50 MP session at a time, and every user operation runs first.
+    {std::lock_guard lock(mutex_);low_jobs_.push_back(std::move(job));}
+    wake_.notify_one();
 }

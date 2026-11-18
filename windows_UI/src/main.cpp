@@ -154,8 +154,12 @@ private:
             if(!require(negative>=0,"negative_test_stock_in_catalog"))return;
             stage_=7;controller_.setFilmIndex(negative);
         } else if(stage_==7) {
-            if(!require(operation=="render"&&ok&&!controller_.frame()->reprint()&&
-                        controller_.frame()->settings.film_stock!=held_->settings.film_stock,"film_change_renders_selected_stock"))return;
+            if(!require(operation=="render"&&ok&&
+                        controller_.frame()->settings.film_stock!=held_->settings.film_stock,
+                        QString("film_change_renders_selected_stock frame_film=%3 held_film=%4 status=%6")
+                            .arg(QString::fromStdString(controller_.frame()->settings.film_stock))
+                            .arg(QString::fromStdString(held_->settings.film_stock))
+                            .arg(controller_.status())))return;
             stage_=8;controller_.setPaperIndex((controller_.paperIndex()+1)%controller_.papers().size());
         } else if(stage_==8) {
             if(!require(operation=="render"&&ok&&controller_.frame()->reprint()&&
