@@ -10,7 +10,7 @@
 
 ## ⬇ Download (Windows x64)
 
-**[Download Spektra XD for Windows x64 (latest)](https://github.com/ROpenData/SpektraXD/releases/latest/download/SpektraXD-2.4.1-xd-win64.zip)**
+**[Download Spektra XD for Windows x64 (latest)](https://github.com/ROpenData/SpektraXD/releases/latest/download/SpektraXD-2.4.2-xd-win64.zip)**
 · [All releases](https://github.com/ROpenData/SpektraXD/releases)
 
 No installer. Three steps:
