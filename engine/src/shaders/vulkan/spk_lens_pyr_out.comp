@@ -8,7 +8,6 @@
 // tile) with its border and the coarse level's samples it needs in shared
 // memory. c: {c_id[3], f[(R+1)^2][3]}; meta: {H, W, H1, W1, R, row0, n}
 #include "spk_lens.glsl"
-layout(local_size_x = 256) in;
 // E and out are the same buffer for the glow's pointwise combine (R = 0, row0
 // = 0): no readonly/writeonly, so the two bindings may alias. Each invocation
 // reads its own pixel before it writes it, and a tile's loads finish at the

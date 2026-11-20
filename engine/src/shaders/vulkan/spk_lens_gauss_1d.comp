@@ -4,7 +4,6 @@
 // glow's Gaussian), edges replicated, stored fp16-rounded (spk_lens.glsl).
 // w: taps 0 .. r; meta: {H, W, r, axis}
 #include "spk_lens.glsl"
-layout(local_size_x = 256) in;
 layout(std430, binding = 0) readonly buffer Img { float img[]; };
 layout(std430, binding = 1) readonly buffer Wt { float w[]; };
 layout(std430, binding = 2) readonly buffer Meta { uint meta[]; };

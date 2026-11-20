@@ -6,7 +6,6 @@
 // b - 1, b, b + 1, an odd one (1, 10, 5) / 16.
 // meta: {Hf, Wf, Hc, Wc, has_coarse}; a: a_k[3]
 #include "spk_lens.glsl"
-layout(local_size_x = 256) in;
 // No readonly/writeonly: a level with no coarser one is bound as both (its
 // coarse is then never read).
 layout(std430, binding = 0) buffer Fine { float fine[]; };

@@ -4,7 +4,6 @@
 // below, plane-anchored, the tent [1 3 3 1] / 8 per axis.
 // meta: {Hin, Win, I0in, Hout, Wout, I0out}
 #include "spk_lens.glsl"
-layout(local_size_x = 256) in;
 layout(std430, binding = 0) readonly buffer Img { float img[]; };
 layout(std430, binding = 1) readonly buffer Meta { uint meta[]; };
 layout(std430, binding = 2) writeonly buffer Out { float dst[]; };

@@ -4,7 +4,6 @@
 // image (fp32, the scatter source applied), the binomial [1 5 10 10 5 1] / 32
 // per axis. The level is stored fp16-rounded (spk_lens.glsl). meta: {Hin, Win, Hout, Wout}
 #include "spk_lens.glsl"
-layout(local_size_x = 256) in;
 layout(std430, binding = 0) readonly buffer Img { float img[]; };
 layout(std430, binding = 1) readonly buffer Bp { float bp[]; };
 layout(std430, binding = 2) readonly buffer Meta { uint meta[]; };

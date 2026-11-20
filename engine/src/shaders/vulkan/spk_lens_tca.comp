@@ -4,7 +4,6 @@
 // against G by 1 + a h, bilinear, scaled by the map's Jacobian.
 // p: {pcx, pcy, inv_hd, a_r, a_b}; meta: {H, W, row0}
 #include "spk_lens.glsl"
-layout(local_size_x = 256) in;
 layout(std430, binding = 0) readonly buffer Img { float img[]; };
 layout(std430, binding = 1) readonly buffer P { float p[]; };
 layout(std430, binding = 2) readonly buffer Meta { uint meta[]; };

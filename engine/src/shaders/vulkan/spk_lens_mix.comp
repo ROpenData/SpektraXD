@@ -3,7 +3,6 @@
 // lens.metal spk_lens_mix: out = a * raw + b * (fine + up(grid A) + up(grid B)).
 // meta: {H, W, row0, has_fine, fa, I0a, LHa, LWa, fb, I0b, LHb, LWb}; ab: a[3], b[3].
 #include "spk_lens.glsl"
-layout(local_size_x = 256) in;
 layout(std430, binding = 0) readonly buffer Raw { float raw[]; };
 layout(std430, binding = 1) readonly buffer Fine { float fine[]; };
 layout(std430, binding = 2) readonly buffer Ga { float ga[]; };

@@ -10,6 +10,11 @@
 // float-to-half conversion): the same numbers, twice the memory (lens.cpp
 // `kLevelBytes`), and no dependency on a device's 16-bit storage feature.
 
+// The shared workgroup size: every lens kernel launches 256-thread groups
+// (vulkan_gpu.cpp kKernels' kWorkgroup), declared here so the helpers below
+// can read gl_WorkGroupSize before the including kernel re-states it.
+layout(local_size_x = 256) in;
+
 // vulkan_gpu.cpp folds a dispatch past maxComputeWorkGroupCount[0] (65535 on
 // lavapipe and Intel) into rows of workgroups; this is the 1D index it means.
 uint spk_global_index() {

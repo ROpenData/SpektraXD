@@ -3,7 +3,6 @@
 // lens.metal spk_lens_cctf_encode: the input's transfer function put back after
 // the lens (spk_cctf_decode's inverse), in place. meta: {n, mode}
 #include "spk_lens.glsl"
-layout(local_size_x = 256) in;
 layout(std430, binding = 0) buffer X { float x[]; };
 layout(std430, binding = 1) readonly buffer Meta { uint meta[]; };
 

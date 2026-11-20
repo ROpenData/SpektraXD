@@ -3,7 +3,6 @@
 // lens.metal spk_lens_splat: a tent splat down to a plane-anchored grid.
 // meta: {H, W, row0, PH, LW, I0, nI, f, outI0}
 #include "spk_lens.glsl"
-layout(local_size_x = 256) in;
 layout(std430, binding = 0) readonly buffer Img { float img[]; };
 layout(std430, binding = 1) readonly buffer Meta { uint meta[]; };
 layout(std430, binding = 2) writeonly buffer Out { float dst[]; };
